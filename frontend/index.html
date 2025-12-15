@@ -1,17 +1,21 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>개인 메모</title>
-    </head>
-    <body>
-        <h1>내 메모</h1>
+<head>
+  <meta charset="UTF-8">
+  <title>메모 (로그인 필요)</title>
+</head>
+<body>
+  <h1>로그인</h1>
+  <input id="u" placeholder="아이디">
+  <input id="p" placeholder="비밀번호" type="password">
+  <button id="signup">회원가입</button>
+  <button id="login">로그인</button>
 
-        <input id="text" placeholder="메모입력" />
-        <button id="save">저장</button>
+  <h2>메모</h2>
+  <input id="text" placeholder="메모 입력">
+  <button id="save">저장</button>
+  <ul id="list"></ul>
 
-        <ul id="list"></ul>
-
-        <script src="app.js"></script>
-    </body>
+  <script src="app.js"></script>
+</body>
 </html>
