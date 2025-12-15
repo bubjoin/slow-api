@@ -36,7 +36,32 @@ async function loadMemos() {
   ul.innerHTML = "";
   for (const m of memos) {
     const li = document.createElement("li");
-    li.innerText = `${m.text} (${m.created_at})`;
+    li.innerText = m.text + " ";
+
+    const edit = document.createElement("button");
+    edit.innerText = "수정";
+    edit.onclick = async () => {
+      const newText = prompt("수정할 내용", m.text);
+      if (!newText) return;
+      await fetch(`${API}/memo/${m.id}?text=${encodeURIComponent(newText)}`, {
+        method: "PUT",
+        headers: { "Authorization": token }
+      });
+      loadMemos();
+    };
+
+    const del = document.createElement("button");
+    del.innerText = "삭제";
+    del.onclick = async () => {
+      await fetch(`${API}/memo/${m.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": token }
+      });
+      loadMemos();
+    };
+
+    li.appendChild(edit);
+    li.appendChild(del);
     ul.appendChild(li);
   }
 }

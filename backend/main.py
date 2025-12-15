@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import secrets
 
+import itertools
+
+memo_id_seq = itertools.count(1)
+
 app = FastAPI()
 
 # CORS (개발용)
@@ -42,11 +46,47 @@ def require_user(token: str | None):
         raise HTTPException(status_code=401, detail="로그인 필요")
     return TOKENS[token]
 
+# ===== 메모 삭제 (로그인 필수) =====
+@app.delete("/memo/{memo_id}")
+def delete_memo(
+    memo_id: int,
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+
+    for i, m in enumerate(MEMOS):
+        if m["id"] == memo_id:
+            if m["owner"] != user:
+                raise HTTPException(status_code=403, detail="권한 없음")
+            MEMOS.pop(i)
+            return {"msg": "삭제됨"}
+
+    raise HTTPException(status_code=404, detail="메모 없음")
+
+# ===== 메모 수정 (로그인 필수) =====
+@app.put("/memo/{memo_id}")
+def update_memo(
+    memo_id: int,
+    text: str,
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+
+    for m in MEMOS:
+        if m["id"] == memo_id:
+            if m["owner"] != user:
+                raise HTTPException(status_code=403, detail="권한 없음")
+            m["text"] = text
+            return m
+
+    raise HTTPException(status_code=404, detail="메모 없음")
+
 # ===== 메모 작성 (로그인 필수) =====
 @app.post("/memo")
 def create_memo(text: str, authorization: str | None = Header(default=None)):
     user = require_user(authorization)
     memo = {
+        "id": next(memo_id_seq),
         "text": text,
         "created_at": datetime.utcnow().isoformat(),
         "owner": user
@@ -59,3 +99,4 @@ def create_memo(text: str, authorization: str | None = Header(default=None)):
 def list_memos(authorization: str | None = Header(default=None)):
     user = require_user(authorization)
     return [m for m in MEMOS if m["owner"] == user]
+
