@@ -78,6 +78,17 @@ async function loadEvents() {
   }
 }
 
+document.getElementById("share-btn").onclick = async () => {
+  const target = document.getElementById("share-user").value;
+
+  await fetch(`/events/share?target_user=${encodeURIComponent(target)}`, {
+    method: "POST",
+    headers: { "Authorization": token }
+  });
+
+  alert("공유 완료");
+};
+
 loadEvents();
 
 

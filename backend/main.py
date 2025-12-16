@@ -31,6 +31,8 @@ EVENTS = []   # 일정 저장소
 memo_id_seq = itertools.count(1)
 event_id_seq = itertools.count(1)
 
+EVENT_SHARES = []  # { "owner": "alice", "viewer": "bob" }
+
 # ===== 회원가입 =====
 @app.post("/signup")
 def signup(username: str, password: str):
@@ -53,6 +55,23 @@ def require_user(token: str | None):
     if not token or token not in TOKENS:
         raise HTTPException(status_code=401, detail="로그인 필요")
     return TOKENS[token]
+
+# ===== 일정 공유 허락 (로그인 필수) =====
+@app.post("/events/share")
+def share_events(
+    target_user: str,
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+
+    if target_user == user:
+        raise HTTPException(status_code=400, detail="Cannot share to yourself")
+
+    EVENT_SHARES.append({
+        "owner": user,
+        "viewer": target_user
+    })
+    return {"msg": f"Shared with {target_user}"}
 
 # ===== 일정 삭제 (로그인 필수) =====
 @app.delete("/events/{event_id}")
@@ -115,7 +134,16 @@ def list_events(
     authorization: str | None = Header(default=None)
 ):
     user = require_user(authorization)
-    return [e for e in EVENTS if e["owner"] == user]
+
+    visible_users = {user} # visible_users가 누구를 의미하는 것인지 생각해볼 것
+    # 기본적으로 자기 자신을 가지고 시작
+
+    for s in EVENT_SHARES:
+        if s["viewer"] == user: # 나한테 보라고 허용해준 유저가 있으면
+            visible_users.add(s["owner"]) # 그 유저도 visible_users에 추가
+
+    # 결과적으로 visible_users에 속하는 모든 유저 소유의 일정을 볼 수 있도록 함
+    return [e for e in EVENTS if e["owner"] in visible_users]
 
 # ===== 메모 삭제 (로그인 필수) =====
 @app.delete("/memo/{memo_id}")

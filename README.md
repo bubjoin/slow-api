@@ -9,3 +9,4 @@
 - day 3 unified origin : serving staticfiles, origin(protocol + host + port), route shadowing  
 - day 4 personal calendar : same structure as the memo service  
 - day 5 event control : authorization vs authentication, resource id  
+- day 6 shared calendar : data sharing model  
