@@ -1,4 +1,4 @@
-const API = "http://127.0.0.1:8000";
+const API = "";
 let token = localStorage.getItem("token");
 
 document.getElementById("signup").onclick = async () => {
@@ -13,6 +13,9 @@ document.getElementById("login").onclick = async () => {
   const data = await res.json();
   token = data.token;
   localStorage.setItem("token", token);
+  if (!token) {
+    alert("회원가입 후 이용하세요!");
+  }
   loadMemos();
 };
 
@@ -23,6 +26,9 @@ document.getElementById("save").onclick = async () => {
     headers: { "Authorization": token }
   });
   document.getElementById("text").value = "";
+  if (!token) {
+    alert("로그인 후 이용하세요!");
+  }
   loadMemos();
 };
 

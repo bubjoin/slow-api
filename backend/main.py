@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 from datetime import datetime
 import secrets
 
@@ -9,14 +11,17 @@ memo_id_seq = itertools.count(1)
 
 app = FastAPI()
 
-# CORS (개발용)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# ===== static 라우트 별도 관리 =====
+app.mount(
+    "/static",
+    StaticFiles(directory="frontend", html=True),
+    name="frontend"
 )
+
+# ===== html 파일 직접 제공 =====
+@app.get("/")
+def index():
+    return FileResponse("frontend/index.html")
 
 # ===== 임시 저장소 (나중에 DB로 교체) =====
 USERS = {}      # username -> password
