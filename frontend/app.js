@@ -1,42 +1,125 @@
 const API = "";
 let token = localStorage.getItem("token");
+let currentProjectId = null; // Day 7 핵심
 
+// ===== 로그인 / 회원가입 =====
 document.getElementById("signup").onclick = async () => {
   const u = uval(), p = pval();
-  await fetch(`${API}/signup?username=${u}&password=${p}`, { method: "POST" });
+  await fetch(`/signup?username=${u}&password=${p}`, { method: "POST" });
   alert("회원가입 완료");
 };
 
 document.getElementById("login").onclick = async () => {
   const u = uval(), p = pval();
-  const res = await fetch(`${API}/login?username=${u}&password=${p}`, { method: "POST" });
+  const res = await fetch(`/login?username=${u}&password=${p}`, { method: "POST" });
   const data = await res.json();
   token = data.token;
   localStorage.setItem("token", token);
-  if (!token) {
-    alert("회원가입 후 이용하세요!");
-  }
-  loadEvents();
+  loadProjects();
   loadMemos();
 };
 
+// ===== 프로젝트 =====
+document.getElementById("create-project").onclick = async () => {
+  const name = document.getElementById("project-name").value;
 
-document.getElementById("add-event").onclick = async () => {
-  const title = document.getElementById("event-title").value;
-  const date = document.getElementById("event-date").value;
-
-  await fetch(`/events?title=${encodeURIComponent(title)}&date=${date}`, {
+  await fetch(`/projects?name=${encodeURIComponent(name)}`, {
     method: "POST",
     headers: { "Authorization": token }
   });
 
+  loadProjects();
+};
+
+async function loadProjects() {
+  if (!token) return;
+
+  const res = await fetch("/projects", {
+    headers: { "Authorization": token }
+  });
+  const projects = await res.json();
+
+  const ul = document.getElementById("project-list");
+  ul.innerHTML = "";
+
+  for (const p of projects) {
+    const li = document.createElement("li");
+    li.innerText = p.name;
+    li.onclick = () => {
+      currentProjectId = p.id;
+      loadEvents();
+      loadMembers();
+    };
+    ul.appendChild(li);
+  }
+}
+
+// ===== 프로젝트 일정 =====
+document.getElementById("add-event").onclick = async () => {
+  if (!currentProjectId) {
+    alert("프로젝트를 먼저 선택하세요");
+    return;
+  }
+
+  const title = document.getElementById("event-title").value;
+  const date = document.getElementById("event-date").value;
+
+  await fetch(
+    `/projects/${currentProjectId}/events?title=${encodeURIComponent(title)}&date=${date}`,
+    {
+      method: "POST",
+      headers: { "Authorization": token }
+    }
+  );
+
   loadEvents();
 };
 
-async function loadEvents() {
-  if (!token) return;
+// ===== 프로젝트 멤버 =====
+document.getElementById("add-member").onclick = async () => {
+  if (!currentProjectId) {
+    alert("프로젝트를 먼저 선택하세요");
+    return;
+  }
 
-  const res = await fetch("/events", {
+  const user = document.getElementById("member-user").value;
+
+  await fetch(
+    `/projects/${currentProjectId}/members?target_user=${encodeURIComponent(user)}`,
+    {
+      method: "POST",
+      headers: { "Authorization": token }
+    }
+  );
+
+  alert("멤버 추가 완료");
+};
+
+// ===== 멤버스 로드 =====
+async function loadMembers() {
+  if (!token || !currentProjectId) return;
+
+  const res = await fetch(
+    `/projects/${currentProjectId}/members`,
+    { headers: { "Authorization": token } }
+  );
+  const members = await res.json();
+
+  const ul = document.getElementById("member-list");
+  ul.innerHTML = "";
+
+  for (const m of members) {
+    const li = document.createElement("li");
+    li.innerText = `${m.user} (${m.role})`;
+    ul.appendChild(li);
+  }
+}
+
+// ===== 이벤트 로드 =====
+async function loadEvents() {
+  if (!token || !currentProjectId) return;
+
+  const res = await fetch(`/projects/${currentProjectId}/events`, {
     headers: { "Authorization": token }
   });
   const events = await res.json();
@@ -55,20 +138,26 @@ async function loadEvents() {
       const newDate = prompt("New date (YYYY-MM-DD)", e.date);
       if (!newTitle || !newDate) return;
   
-      await fetch(`/events/${e.id}?title=${encodeURIComponent(newTitle)}&date=${newDate}`, {
-        method: "PUT",
-        headers: { "Authorization": token }
-      });
+      await fetch(
+        `/projects/${currentProjectId}/events/${e.id}?title=${encodeURIComponent(newTitle)}&date=${newDate}`,
+        {
+          method: "PUT",
+          headers: { "Authorization": token }
+        }
+      );
       loadEvents();
     };
   
     const del = document.createElement("button");
     del.innerText = "Delete";
     del.onclick = async () => {
-      await fetch(`/events/${e.id}`, {
-        method: "DELETE",
-        headers: { "Authorization": token }
-      });
+      await fetch(
+        `/projects/${currentProjectId}/events/${e.id}`,
+        {
+          method: "DELETE",
+          headers: { "Authorization": token }
+        }
+      );
       loadEvents();
     };
   
@@ -78,20 +167,7 @@ async function loadEvents() {
   }
 }
 
-document.getElementById("share-btn").onclick = async () => {
-  const target = document.getElementById("share-user").value;
-
-  await fetch(`/events/share?target_user=${encodeURIComponent(target)}`, {
-    method: "POST",
-    headers: { "Authorization": token }
-  });
-
-  alert("공유 완료");
-};
-
-loadEvents();
-
-
+// ===== 메모 =====
 document.getElementById("save").onclick = async () => {
   const text = document.getElementById("text").value;
   await fetch(`${API}/memo?text=${encodeURIComponent(text)}`, {
@@ -148,4 +224,7 @@ async function loadMemos() {
 function uval(){ return document.getElementById("u").value; }
 function pval(){ return document.getElementById("p").value; }
 
-if (token) loadMemos();
+if (token) {
+  loadProjects();
+  loadMemos();
+}

@@ -10,3 +10,4 @@
 - day 4 personal calendar : same structure as the memo service  
 - day 5 event control : authorization vs authentication, resource id  
 - day 6 shared calendar : data sharing model  
+- day 7 project space : from data sharing model to project team model, rbac(role-based access control)

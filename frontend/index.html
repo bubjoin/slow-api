@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>메모 (로그인 필요)</title>
+  <title>Slow API</title>
 </head>
 <body>
   <h1>로그인</h1>
@@ -11,15 +11,33 @@
   <button id="signup">회원가입</button>
   <button id="login">로그인</button>
 
-  <h2>일정</h2>
+  <hr>
+
+  <h2>Projects</h2>
+  <input id="project-name" placeholder="새 프로젝트 이름">
+  <button id="create-project">프로젝트 생성</button>
+  <ul id="project-list"></ul>
+
+  <hr>
+
+  <h2>Project Members</h2>
+  <input id="member-user" placeholder="추가할 사용자">
+  <button id="add-member">멤버 추가</button>
+
+  <hr>
+
+  <h3>Project Members</h3>
+  <ul id="member-list"></ul>
+
+  <hr>
+
+  <h2>Project Events</h2>
   <input id="event-title" placeholder="일정 제목">
   <input id="event-date" type="date">
   <button id="add-event">일정 추가</button>
   <ul id="event-list"></ul>
-
-  <h3>일정 공유</h3>
-  <input id="share-user" placeholder="공유할 사용자">
-  <button id="share-btn">공유</button>
+ 
+  <hr>
 
   <h2>메모</h2>
   <input id="text" placeholder="메모 입력">
