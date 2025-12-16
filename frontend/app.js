@@ -16,8 +16,43 @@ document.getElementById("login").onclick = async () => {
   if (!token) {
     alert("회원가입 후 이용하세요!");
   }
+  loadEvents();
   loadMemos();
 };
+
+
+document.getElementById("add-event").onclick = async () => {
+  const title = document.getElementById("event-title").value;
+  const date = document.getElementById("event-date").value;
+
+  await fetch(`/events?title=${encodeURIComponent(title)}&date=${date}`, {
+    method: "POST",
+    headers: { "Authorization": token }
+  });
+
+  loadEvents();
+};
+
+async function loadEvents() {
+  if (!token) return;
+
+  const res = await fetch("/events", {
+    headers: { "Authorization": token }
+  });
+  const events = await res.json();
+
+  const ul = document.getElementById("event-list");
+  ul.innerHTML = "";
+
+  for (const e of events) {
+    const li = document.createElement("li");
+    li.innerText = `${e.date} - ${e.title}`;
+    ul.appendChild(li);
+  }
+}
+
+loadEvents();
+
 
 document.getElementById("save").onclick = async () => {
   const text = document.getElementById("text").value;

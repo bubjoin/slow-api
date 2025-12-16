@@ -7,8 +7,7 @@ import secrets
 
 import itertools
 
-memo_id_seq = itertools.count(1)
-
+# ===== backend.main:app =====
 app = FastAPI()
 
 # ===== static 라우트 별도 관리 =====
@@ -27,6 +26,10 @@ def index():
 USERS = {}      # username -> password
 TOKENS = {}     # token -> username
 MEMOS = []      # {text, created_at, owner}
+EVENTS = []   # 일정 저장소
+
+memo_id_seq = itertools.count(1)
+event_id_seq = itertools.count(1)
 
 # ===== 회원가입 =====
 @app.post("/signup")
@@ -50,6 +53,32 @@ def require_user(token: str | None):
     if not token or token not in TOKENS:
         raise HTTPException(status_code=401, detail="로그인 필요")
     return TOKENS[token]
+
+# ===== 일정 생성 (로그인 필수) =====
+@app.post("/events")
+def create_event(
+    title: str,
+    date: str,   # YYYY-MM-DD
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+
+    event = {
+        "id": next(event_id_seq),
+        "title": title,
+        "date": date,
+        "owner": user
+    }
+    EVENTS.append(event)
+    return event
+
+# ===== 일정 조회 (로그인 필수) =====
+@app.get("/events")
+def list_events(
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+    return [e for e in EVENTS if e["owner"] == user]
 
 # ===== 메모 삭제 (로그인 필수) =====
 @app.delete("/memo/{memo_id}")
@@ -104,4 +133,3 @@ def create_memo(text: str, authorization: str | None = Header(default=None)):
 def list_memos(authorization: str | None = Header(default=None)):
     user = require_user(authorization)
     return [m for m in MEMOS if m["owner"] == user]
-
