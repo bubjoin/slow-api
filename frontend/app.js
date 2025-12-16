@@ -46,7 +46,34 @@ async function loadEvents() {
 
   for (const e of events) {
     const li = document.createElement("li");
-    li.innerText = `${e.date} - ${e.title}`;
+    li.innerText = `${e.date} - ${e.title} `;
+  
+    const edit = document.createElement("button");
+    edit.innerText = "Edit";
+    edit.onclick = async () => {
+      const newTitle = prompt("New title", e.title);
+      const newDate = prompt("New date (YYYY-MM-DD)", e.date);
+      if (!newTitle || !newDate) return;
+  
+      await fetch(`/events/${e.id}?title=${encodeURIComponent(newTitle)}&date=${newDate}`, {
+        method: "PUT",
+        headers: { "Authorization": token }
+      });
+      loadEvents();
+    };
+  
+    const del = document.createElement("button");
+    del.innerText = "Delete";
+    del.onclick = async () => {
+      await fetch(`/events/${e.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": token }
+      });
+      loadEvents();
+    };
+  
+    li.appendChild(edit);
+    li.appendChild(del);
     ul.appendChild(li);
   }
 }

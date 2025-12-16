@@ -54,6 +54,43 @@ def require_user(token: str | None):
         raise HTTPException(status_code=401, detail="로그인 필요")
     return TOKENS[token]
 
+# ===== 일정 삭제 (로그인 필수) =====
+@app.delete("/events/{event_id}")
+def delete_event(
+    event_id: int,
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+
+    for i, e in enumerate(EVENTS):
+        if e["id"] == event_id:
+            if e["owner"] != user:
+                raise HTTPException(status_code=403, detail="No permission")
+            EVENTS.pop(i)
+            return {"msg": "Deleted"}
+
+    raise HTTPException(status_code=404, detail="Event not found")
+
+# ===== 일정 수정 (로그인 필수) =====
+@app.put("/events/{event_id}")
+def update_event(
+    event_id: int,
+    title: str,
+    date: str,
+    authorization: str | None = Header(default=None)
+):
+    user = require_user(authorization)
+
+    for e in EVENTS:
+        if e["id"] == event_id:
+            if e["owner"] != user:
+                raise HTTPException(status_code=403, detail="No permission")
+            e["title"] = title
+            e["date"] = date
+            return e
+
+    raise HTTPException(status_code=404, detail="Event not found")
+
 # ===== 일정 생성 (로그인 필수) =====
 @app.post("/events")
 def create_event(
