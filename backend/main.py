@@ -263,8 +263,11 @@ async def update_project_event(
 
     for e in PROJECT_EVENTS:
         if e["id"] == event_id and e["project_id"] == project_id:
-            if e["owner"] != user:
-                raise HTTPException(403, "No permission")
+            if not any(
+                m for m in PROJECT_MEMBERS
+                if m["project_id"] == project_id and m["user"] == user
+            ):
+                raise HTTPException(403, "Not a project member")
             e["title"] = title
             e["date"] = date
             for ws in PROJECT_CONNECTIONS.get(project_id, set()):
@@ -287,8 +290,11 @@ async def delete_project_event(
 
     for i, e in enumerate(PROJECT_EVENTS):
         if e["id"] == event_id and e["project_id"] == project_id:
-            if e["owner"] != user:
-                raise HTTPException(403, "No permission")
+            if not any(
+                m for m in PROJECT_MEMBERS
+                if m["project_id"] == project_id and m["user"] == user
+            ):
+                raise HTTPException(403, "Not a project member")
             PROJECT_EVENTS.pop(i)
 
             # ===== Day 8: 실시간 알림 (삭제) =====
