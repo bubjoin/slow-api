@@ -13,3 +13,4 @@
 - day 7 project space : from data sharing model to project team model, rbac(role-based access control)  
 - day 8 live sync : project channels, http + websocket, pip install "uvicorn[standard]", devtools - network - disable cache, static asset versioning(cache busting)  
 - day 8.5 shared control : collaborative edit(update project event + delete project event)  
+- day 9 conflict control : optimistic lock  

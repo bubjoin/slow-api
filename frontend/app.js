@@ -133,6 +133,7 @@ async function loadEvents() {
   for (const e of events) {
     const li = document.createElement("li");
     li.innerText = `${e.date} - ${e.title} `;
+    li.dataset.version = e.version;
   
     const edit = document.createElement("button");
     edit.innerText = "Edit";
@@ -141,13 +142,20 @@ async function loadEvents() {
       const newDate = prompt("New date (YYYY-MM-DD)", e.date);
       if (!newTitle || !newDate) return;
   
-      await fetch(
-        `/projects/${currentProjectId}/events/${e.id}?title=${encodeURIComponent(newTitle)}&date=${newDate}`,
+      const res = await fetch(
+        `/projects/${currentProjectId}/events/${e.id}?title=${encodeURIComponent(newTitle)}&date=${newDate}&version=${e.version}`,
         {
           method: "PUT",
           headers: { "Authorization": token }
         }
       );
+
+      if (res.status === 409) {
+        alert("다른 사용자가 먼저 수정했습니다. 새로고침합니다.");
+        loadEvents();
+        return;
+      }
+
       loadEvents();
     };
   

@@ -218,7 +218,8 @@ async def create_project_event(
         "project_id": project_id,
         "title": title,
         "date": date,
-        "owner": user
+        "owner": user,
+        "version": 1
     }
     PROJECT_EVENTS.append(event)
 
@@ -257,6 +258,7 @@ async def update_project_event(
     event_id: int,
     title: str,
     date: str,
+    version: int,
     authorization: str | None = Header(default=None)
 ):
     user = require_user(authorization)
@@ -268,8 +270,18 @@ async def update_project_event(
                 if m["project_id"] == project_id and m["user"] == user
             ):
                 raise HTTPException(403, "Not a project member")
+            
+            # 충돌감지
+            if e["version"] != version:
+                raise HTTPException(
+                    409,
+                    detail="Conflict: event has been modified by another user"
+                )
+            
             e["title"] = title
             e["date"] = date
+            e["version"] += 1
+
             for ws in PROJECT_CONNECTIONS.get(project_id, set()):
                 await ws.send_json({
                     "type": "event_updated",
