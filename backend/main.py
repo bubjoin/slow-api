@@ -2,6 +2,8 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from fastapi import WebSocket, WebSocketDisconnect
+
 from datetime import datetime
 import secrets
 import itertools
@@ -30,11 +32,16 @@ memo_id_seq = itertools.count(1)
 
 # ===== Day 7: Project Space =====
 PROJECTS = []         # {id, name, owner}
-PROJECT_MEMBERS = []  # {project_id, user}
+PROJECT_MEMBERS = []  # {project_id, user, role}
 PROJECT_EVENTS = []   # {id, project_id, title, date, owner}
 
 project_id_seq = itertools.count(1)
 event_id_seq = itertools.count(1)
+
+# ===== Day 8: WebSocket Connections =====
+PROJECT_CONNECTIONS = {}  # project_id -> set of WebSocket
+# 프로젝트마다 연결된 클라이언트 목록을 관리
+# 실시간의 “방(Room)” 역할
 
 # ===== 회원가입 =====
 @app.post("/signup")
@@ -58,6 +65,51 @@ def require_user(token: str | None):
     if not token or token not in TOKENS:
         raise HTTPException(status_code=401, detail="로그인 필요")
     return TOKENS[token]
+
+# =========================================================
+# =============== Day 8 Live Sync (websocket) =============
+# =========================================================
+
+@app.websocket("/ws/projects/{project_id}") # 웹소켓 핸들러
+async def project_ws(
+    websocket: WebSocket,
+    project_id: int,
+    token: str
+):
+    # 1. 인증
+    user = require_user(token)
+
+    # 2. 프로젝트 멤버 확인
+    if not any(
+        m for m in PROJECT_MEMBERS
+        if m["project_id"] == project_id and m["user"] == user
+    ):
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+
+    # 3. 연결 등록
+    PROJECT_CONNECTIONS.setdefault(project_id, set()).add(websocket)
+
+    try:
+        while True:
+            # 우리는 아직 웹소켓으로는
+            # 클라이언트 메시지를 안 받는다 (읽기 전용)
+            # CPU 점유 x, 비동기 대기
+            await websocket.receive_text() 
+            # 메세지 처리 용이 아닌 클라이언트가 연결을 끊을때까지
+            # 서버가 살아 있으라고 기다리는 장치 
+            # (웹소켓 핸들러 종료 방지!)
+            # “메시지를 받으려고” 있는 게 아니라
+            # “연결이 살아 있는 동안 서버를 잠들게 하려는 코드”
+    except WebSocketDisconnect: # 클라이언트가 연결 끊으면 예외 발생
+        pass
+    finally:
+        conns = PROJECT_CONNECTIONS.get(project_id)
+        if conns and websocket in conns:
+            conns.remove(websocket)
+
 
 # =========================================================
 # ===================== Day 7 Project Space ===============
@@ -147,7 +199,7 @@ def list_project_members(
 
 # ===== 프로젝트 일정 생성 =====
 @app.post("/projects/{project_id}/events")
-def create_project_event(
+async def create_project_event(
     project_id: int,
     title: str,
     date: str,
@@ -169,6 +221,14 @@ def create_project_event(
         "owner": user
     }
     PROJECT_EVENTS.append(event)
+
+    # Day 8: 실시간 알림
+    for ws in PROJECT_CONNECTIONS.get(project_id, set()):
+        await ws.send_json({
+            "type": "event_created",
+            "event": event
+        })
+
     return event
 
 # ===== 프로젝트 일정 조회 =====
@@ -192,7 +252,7 @@ def list_project_events(
 
 # ===== 프로젝트 일정 수정 =====
 @app.put("/projects/{project_id}/events/{event_id}")
-def update_project_event(
+async def update_project_event(
     project_id: int,
     event_id: int,
     title: str,
@@ -207,13 +267,18 @@ def update_project_event(
                 raise HTTPException(403, "No permission")
             e["title"] = title
             e["date"] = date
+            for ws in PROJECT_CONNECTIONS.get(project_id, set()):
+                await ws.send_json({
+                    "type": "event_updated",
+                    "event_id": event_id
+                })
             return e
 
     raise HTTPException(404, "Event not found")
 
 # ===== 프로젝트 일정 삭제 =====
 @app.delete("/projects/{project_id}/events/{event_id}")
-def delete_project_event(
+async def delete_project_event(
     project_id: int,
     event_id: int,
     authorization: str | None = Header(default=None)
@@ -225,6 +290,13 @@ def delete_project_event(
             if e["owner"] != user:
                 raise HTTPException(403, "No permission")
             PROJECT_EVENTS.pop(i)
+
+            # ===== Day 8: 실시간 알림 (삭제) =====
+            for ws in PROJECT_CONNECTIONS.get(project_id, set()):
+                await ws.send_json({
+                    "type": "event_deleted",
+                    "event_id": event_id
+                })
             return {"msg": "Deleted"}
 
     raise HTTPException(404, "Event not found")

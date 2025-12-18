@@ -2,6 +2,8 @@ const API = "";
 let token = localStorage.getItem("token");
 let currentProjectId = null; // Day 7 핵심
 
+let socket = null;
+
 // ===== 로그인 / 회원가입 =====
 document.getElementById("signup").onclick = async () => {
   const u = uval(), p = pval();
@@ -47,6 +49,7 @@ async function loadProjects() {
     li.innerText = p.name;
     li.onclick = () => {
       currentProjectId = p.id;
+      connectWebSocket(); // Day 8 추가
       loadEvents();
       loadMembers();
     };
@@ -165,6 +168,27 @@ async function loadEvents() {
     li.appendChild(del);
     ul.appendChild(li);
   }
+}
+
+// ===== WebSocket 연결함수 =====
+function connectWebSocket() {
+  if (socket) socket.close();
+
+  socket = new WebSocket(
+    `ws://${location.host}/ws/projects/${currentProjectId}?token=${token}`
+  );
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (
+      data.type === "event_created" ||
+      data.type === "event_updated" ||
+      data.type === "event_deleted"
+    ) {
+      loadEvents();
+    }
+  };
 }
 
 // ===== 메모 =====
