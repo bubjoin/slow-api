@@ -8,8 +8,56 @@ from datetime import datetime
 import secrets
 import itertools
 
+import redis
+import json
+import threading
+
+import asyncio
+
+from threading import Lock
+connections_lock = Lock()
+
+
+# ===== Redis =====
+redis_client = redis.Redis(
+    host="localhost",
+    port=6379,
+    decode_responses=True
+)
+
+# ===== async event loop =====
+
+loop: asyncio.AbstractEventLoop | None = None
+
+# ===== Redis Subscriber =====
+def redis_subscriber():
+    pubsub = redis_client.pubsub()
+    pubsub.subscribe("project-events")
+
+    for message in pubsub.listen():
+        if message["type"] != "message":
+            continue
+
+        data = json.loads(message["data"])
+        project_id = data["project_id"]
+
+        with connections_lock:
+            conns = list(PROJECT_CONNECTIONS.get(project_id, set()))
+        for ws in conns:
+            asyncio.run_coroutine_threadsafe(ws.send_json(data), loop)
+
 # ===== backend.main:app =====
 app = FastAPI()
+
+# ===== 서버 시작 시 실행 =====
+@app.on_event("startup")
+async def start_redis_listener():
+    global loop
+    loop = asyncio.get_running_loop()
+
+    # 블로킹 'Redis 클라이언트'를 이벤트 루프 밖으로 치움(스레드로)
+    t = threading.Thread(target=redis_subscriber, daemon=True)
+    t.start()
 
 # ===== static 라우트 별도 관리 =====
 app.mount(
@@ -90,8 +138,8 @@ async def project_ws(
     await websocket.accept()
 
     # 3. 연결 등록
-    PROJECT_CONNECTIONS.setdefault(project_id, set()).add(websocket)
-
+    with connections_lock:
+        PROJECT_CONNECTIONS.setdefault(project_id, set()).add(websocket)
     try:
         while True:
             # 우리는 아직 웹소켓으로는
@@ -106,10 +154,10 @@ async def project_ws(
     except WebSocketDisconnect: # 클라이언트가 연결 끊으면 예외 발생
         pass
     finally:
-        conns = PROJECT_CONNECTIONS.get(project_id)
-        if conns and websocket in conns:
-            conns.remove(websocket)
-
+        with connections_lock:
+            conns = PROJECT_CONNECTIONS.get(project_id)
+            if conns and websocket in conns:
+                conns.remove(websocket)
 
 # =========================================================
 # ===================== Day 7 Project Space ===============
@@ -223,12 +271,14 @@ async def create_project_event(
     }
     PROJECT_EVENTS.append(event)
 
-    # Day 8: 실시간 알림
-    for ws in PROJECT_CONNECTIONS.get(project_id, set()):
-        await ws.send_json({
+    redis_client.publish(
+        "project-events",
+        json.dumps({
             "type": "event_created",
+            "project_id": project_id,
             "event": event
         })
+    )
 
     return event
 
@@ -282,11 +332,15 @@ async def update_project_event(
             e["date"] = date
             e["version"] += 1
 
-            for ws in PROJECT_CONNECTIONS.get(project_id, set()):
-                await ws.send_json({
+            redis_client.publish(
+                "project-events",
+                json.dumps({
                     "type": "event_updated",
+                    "project_id": project_id,
                     "event_id": event_id
                 })
+            )
+            
             return e
 
     raise HTTPException(404, "Event not found")
@@ -309,12 +363,15 @@ async def delete_project_event(
                 raise HTTPException(403, "Not a project member")
             PROJECT_EVENTS.pop(i)
 
-            # ===== Day 8: 실시간 알림 (삭제) =====
-            for ws in PROJECT_CONNECTIONS.get(project_id, set()):
-                await ws.send_json({
+            redis_client.publish(
+                "project-events",
+                json.dumps({
                     "type": "event_deleted",
+                    "project_id": project_id,
                     "event_id": event_id
                 })
+            )
+
             return {"msg": "Deleted"}
 
     raise HTTPException(404, "Event not found")
