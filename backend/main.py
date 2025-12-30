@@ -66,6 +66,113 @@ app.mount(
     name="frontend"
 )
 
+
+# ===== 구조 분리 중 =====
+
+def delete_event_service(
+    project_id: int,
+    event_id: int,
+    user: str
+):
+    for i, e in enumerate(PROJECT_EVENTS):
+        if e["id"] == event_id and e["project_id"] == project_id:
+
+            if not any(
+                m for m in PROJECT_MEMBERS
+                if m["project_id"] == project_id and m["user"] == user
+            ):
+                raise HTTPException(403, "Not a project member")
+
+            PROJECT_EVENTS.pop(i)
+
+            redis_client.publish(
+                "project-events",
+                json.dumps({
+                    "type": "event_deleted",
+                    "project_id": project_id,
+                    "event_id": event_id
+                })
+            )
+
+            return {"msg": "Deleted"}
+
+    raise HTTPException(404, "Event not found")
+
+def update_event_service(
+    project_id: int,
+    event_id: int,
+    title: str,
+    date: str,
+    version: int,
+    user: str
+):
+    for e in PROJECT_EVENTS:
+        if e["id"] == event_id and e["project_id"] == project_id:
+
+            if not any(
+                m for m in PROJECT_MEMBERS
+                if m["project_id"] == project_id and m["user"] == user
+            ):
+                raise HTTPException(403, "Not a project member")
+
+            if e["version"] != version:
+                raise HTTPException(
+                    409,
+                    detail="Conflict: event has been modified by another user"
+                )
+
+            e["title"] = title
+            e["date"] = date
+            e["version"] += 1
+
+            redis_client.publish(
+                "project-events",
+                json.dumps({
+                    "type": "event_updated",
+                    "project_id": project_id,
+                    "event_id": event_id
+                })
+            )
+
+            return e
+
+    raise HTTPException(404, "Event not found")
+
+def create_event_service(
+    project_id: int,
+    title: str,
+    date: str,
+    user: str
+):
+    # 권한 확인
+    if not any(
+        m for m in PROJECT_MEMBERS
+        if m["project_id"] == project_id and m["user"] == user
+    ):
+        raise HTTPException(403, "Not a project member")
+
+    event = {
+        "id": next(event_id_seq),
+        "project_id": project_id,
+        "title": title,
+        "date": date,
+        "owner": user,
+        "version": 1
+    }
+    PROJECT_EVENTS.append(event)
+
+    redis_client.publish(
+        "project-events",
+        json.dumps({
+            "type": "event_created",
+            "project_id": project_id,
+            "event": event
+        })
+    )
+
+    return event
+
+
 # ===== html 파일 직접 제공 =====
 @app.get("/")
 def index():
@@ -254,33 +361,7 @@ async def create_project_event(
     authorization: str | None = Header(default=None)
 ):
     user = require_user(authorization)
-
-    if not any(
-        m for m in PROJECT_MEMBERS
-        if m["project_id"] == project_id and m["user"] == user
-    ):
-        raise HTTPException(403, "Not a project member")
-
-    event = {
-        "id": next(event_id_seq),
-        "project_id": project_id,
-        "title": title,
-        "date": date,
-        "owner": user,
-        "version": 1
-    }
-    PROJECT_EVENTS.append(event)
-
-    redis_client.publish(
-        "project-events",
-        json.dumps({
-            "type": "event_created",
-            "project_id": project_id,
-            "event": event
-        })
-    )
-
-    return event
+    return create_event_service(project_id, title, date, user)
 
 # ===== 프로젝트 일정 조회 =====
 @app.get("/projects/{project_id}/events")
@@ -312,38 +393,10 @@ async def update_project_event(
     authorization: str | None = Header(default=None)
 ):
     user = require_user(authorization)
+    return update_event_service(
+        project_id, event_id, title, date, version, user
+    )
 
-    for e in PROJECT_EVENTS:
-        if e["id"] == event_id and e["project_id"] == project_id:
-            if not any(
-                m for m in PROJECT_MEMBERS
-                if m["project_id"] == project_id and m["user"] == user
-            ):
-                raise HTTPException(403, "Not a project member")
-            
-            # 충돌감지
-            if e["version"] != version:
-                raise HTTPException(
-                    409,
-                    detail="Conflict: event has been modified by another user"
-                )
-            
-            e["title"] = title
-            e["date"] = date
-            e["version"] += 1
-
-            redis_client.publish(
-                "project-events",
-                json.dumps({
-                    "type": "event_updated",
-                    "project_id": project_id,
-                    "event_id": event_id
-                })
-            )
-            
-            return e
-
-    raise HTTPException(404, "Event not found")
 
 # ===== 프로젝트 일정 삭제 =====
 @app.delete("/projects/{project_id}/events/{event_id}")
@@ -353,28 +406,8 @@ async def delete_project_event(
     authorization: str | None = Header(default=None)
 ):
     user = require_user(authorization)
+    return delete_event_service(project_id, event_id, user)
 
-    for i, e in enumerate(PROJECT_EVENTS):
-        if e["id"] == event_id and e["project_id"] == project_id:
-            if not any(
-                m for m in PROJECT_MEMBERS
-                if m["project_id"] == project_id and m["user"] == user
-            ):
-                raise HTTPException(403, "Not a project member")
-            PROJECT_EVENTS.pop(i)
-
-            redis_client.publish(
-                "project-events",
-                json.dumps({
-                    "type": "event_deleted",
-                    "project_id": project_id,
-                    "event_id": event_id
-                })
-            )
-
-            return {"msg": "Deleted"}
-
-    raise HTTPException(404, "Event not found")
 
 # =========================================================
 # ===================== 메모 ==============================

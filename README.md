@@ -17,3 +17,4 @@
 - day 10 distributed sync : redis, docker run -d --name redis-day10 -p 6379:6379 redis:7, docker exec -it redis-day10 redis-cli, ping(pong), client browser-app server1-redis server-app server2-client browser, separation of redis client thread and websocket event loop, a threading lock is used to protect shared memory accessed by both the event loop and background threads,
 only short and synchronous memory operations are allowed inside the lock,
 do not perform async or blocking operations while holding this lock  
+- day 11 service separation : making spaghetti code readable and growable, make endpoints shorter by moving service logic outside the endpoint  
