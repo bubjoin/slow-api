@@ -67,6 +67,33 @@ app.mount(
 )
 
 
+# ===== cover memory access with repository function =====
+
+def save_event(event: dict):
+    PROJECT_EVENTS.append(event)
+    return event
+
+
+def find_events_by_project(project_id: int):
+    return [
+        e for e in PROJECT_EVENTS
+        if e["project_id"] == project_id
+    ]
+
+
+def find_event(project_id: int, event_id: int):
+    for e in PROJECT_EVENTS:
+        if e["project_id"] == project_id and e["id"] == event_id:
+            return e
+    return None
+
+
+def delete_event(project_id: int, event_id: int):
+    for i, e in enumerate(PROJECT_EVENTS):
+        if e["project_id"] == project_id and e["id"] == event_id:
+            return PROJECT_EVENTS.pop(i)
+    return None
+
 # ===== 구조 분리 중 =====
 
 def delete_event_service(
@@ -74,29 +101,28 @@ def delete_event_service(
     event_id: int,
     user: str
 ):
-    for i, e in enumerate(PROJECT_EVENTS):
-        if e["id"] == event_id and e["project_id"] == project_id:
+    event = find_event(project_id, event_id)
+    if not event:
+        raise HTTPException(404, "Event not found")
 
-            if not any(
-                m for m in PROJECT_MEMBERS
-                if m["project_id"] == project_id and m["user"] == user
-            ):
-                raise HTTPException(403, "Not a project member")
+    if not any(
+        m for m in PROJECT_MEMBERS
+        if m["project_id"] == project_id and m["user"] == user
+    ):
+        raise HTTPException(403, "Not a project member")
 
-            PROJECT_EVENTS.pop(i)
+    delete_event(project_id, event_id)
 
-            redis_client.publish(
-                "project-events",
-                json.dumps({
-                    "type": "event_deleted",
-                    "project_id": project_id,
-                    "event_id": event_id
-                })
-            )
+    redis_client.publish(
+        "project-events",
+        json.dumps({
+            "type": "event_deleted",
+            "project_id": project_id,
+            "event_id": event_id
+        })
+    )
 
-            return {"msg": "Deleted"}
-
-    raise HTTPException(404, "Event not found")
+    return {"msg": "Deleted"}
 
 def update_event_service(
     project_id: int,
@@ -106,37 +132,36 @@ def update_event_service(
     version: int,
     user: str
 ):
-    for e in PROJECT_EVENTS:
-        if e["id"] == event_id and e["project_id"] == project_id:
+    event = find_event(project_id, event_id)
+    if not event:
+        raise HTTPException(404, "Event not found")
 
-            if not any(
-                m for m in PROJECT_MEMBERS
-                if m["project_id"] == project_id and m["user"] == user
-            ):
-                raise HTTPException(403, "Not a project member")
+    if not any(
+        m for m in PROJECT_MEMBERS
+        if m["project_id"] == project_id and m["user"] == user
+    ):
+        raise HTTPException(403, "Not a project member")
 
-            if e["version"] != version:
-                raise HTTPException(
-                    409,
-                    detail="Conflict: event has been modified by another user"
-                )
+    if event["version"] != version:
+        raise HTTPException(
+            409,
+            detail="Conflict: event has been modified by another user"
+        )
 
-            e["title"] = title
-            e["date"] = date
-            e["version"] += 1
+    event["title"] = title
+    event["date"] = date
+    event["version"] += 1
 
-            redis_client.publish(
-                "project-events",
-                json.dumps({
-                    "type": "event_updated",
-                    "project_id": project_id,
-                    "event_id": event_id
-                })
-            )
+    redis_client.publish(
+        "project-events",
+        json.dumps({
+            "type": "event_updated",
+            "project_id": project_id,
+            "event_id": event_id
+        })
+    )
 
-            return e
-
-    raise HTTPException(404, "Event not found")
+    return event
 
 def create_event_service(
     project_id: int,
@@ -159,7 +184,7 @@ def create_event_service(
         "owner": user,
         "version": 1
     }
-    PROJECT_EVENTS.append(event)
+    save_event(event)
 
     redis_client.publish(
         "project-events",
