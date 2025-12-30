@@ -167,8 +167,16 @@ def create_event_service(
     project_id: int,
     title: str,
     date: str,
-    user: str
+    user: str,
+    request_id: str
 ):
+    # day 14: idempotency guard
+    if request_id in PROCESSED_REQUEST_IDS:
+        # 이미 처리된 요청 → 아무 것도 하지 않음
+        return None
+    
+    PROCESSED_REQUEST_IDS.add(request_id)
+
     # 권한 확인
     if not any(
         m for m in PROJECT_MEMBERS
@@ -224,6 +232,9 @@ event_id_seq = itertools.count(1)
 PROJECT_CONNECTIONS = {}  # project_id -> set of WebSocket
 # 프로젝트마다 연결된 클라이언트 목록을 관리
 # 실시간의 “방(Room)” 역할
+
+# ===== Day 14: Idempotency and Retry =====
+PROCESSED_REQUEST_IDS = set()
 
 # ===== 회원가입 =====
 @app.post("/signup")
@@ -385,10 +396,11 @@ async def create_project_event(
     project_id: int,
     title: str,
     date: str,
+    request_id: str,
     authorization: str | None = Header(default=None)
 ):
     user = require_user(authorization)
-    return create_event_service(project_id, title, date, user)
+    return create_event_service(project_id, title, date, user, request_id)
 
 # ===== 프로젝트 일정 조회 =====
 @app.get("/projects/{project_id}/events")

@@ -20,3 +20,4 @@ do not perform async or blocking operations while holding this lock
 - day 11 service separation : making spaghetti code readable and growable, make endpoints shorter by moving service logic outside the endpoint  
 - day 12 persistence boundary : moving from memory to database, cover memory access with repository function, service function doesn't know the detail of how to save  
 - day 13 transaction and consistency : save before publish to avoid ghost events  
+- day 14 idempotency and retry : doing the same thing twice safely by using request id  

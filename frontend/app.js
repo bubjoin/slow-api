@@ -4,6 +4,11 @@ let currentProjectId = null; // Day 7 핵심
 
 let socket = null;
 
+// ===== request_id (day 14) =====
+function generateRequestId() {
+  return crypto.randomUUID();
+}
+
 // ===== 로그인 / 회원가입 =====
 document.getElementById("signup").onclick = async () => {
   const u = uval(), p = pval();
@@ -67,8 +72,24 @@ document.getElementById("add-event").onclick = async () => {
   const title = document.getElementById("event-title").value;
   const date = document.getElementById("event-date").value;
 
+  const requestId = generateRequestId();
+
   await fetch(
-    `/projects/${currentProjectId}/events?title=${encodeURIComponent(title)}&date=${date}`,
+    `/projects/${currentProjectId}/events` +
+    `?title=${encodeURIComponent(title)}` +
+    `&date=${date}` +
+    `&request_id=${requestId}`,
+    {
+      method: "POST",
+      headers: { "Authorization": token }
+    }
+  );
+
+  await fetch(
+    `/projects/${currentProjectId}/events` +
+    `?title=${encodeURIComponent(title)}` +
+    `&date=${date}` +
+    `&request_id=${requestId}`,
     {
       method: "POST",
       headers: { "Authorization": token }
