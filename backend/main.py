@@ -184,8 +184,10 @@ def create_event_service(
         "owner": user,
         "version": 1
     }
-    save_event(event)
 
+    # day 13: 혹시 중간에 실패해도 저장은 하고 실패해야 한다 (저장 우선)
+    save_event(event)
+    
     redis_client.publish(
         "project-events",
         json.dumps({
